@@ -127,9 +127,9 @@ export class AuthRepository {
     return user;
   }
 
-  async updateLastLogin(userId: string): Promise<number> {
+  async updateLastLogin(userId: string, tenantId: string): Promise<number> {
     const result = await this.prismaService.user.updateMany({
-      where: { id: userId },
+      where: { id: userId, tenantId },
       data: { lastLoginAt: new Date() },
     });
 

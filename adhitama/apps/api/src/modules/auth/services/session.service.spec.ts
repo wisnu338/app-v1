@@ -1,4 +1,7 @@
 import { UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { PasswordService } from '@infrastructure/password';
+import type { SessionRepository } from '../repositories/session.repository';
 import { SessionService } from './session.service';
 
 const mockSessionRepository = {
@@ -24,9 +27,9 @@ describe('SessionService', () => {
     jest.clearAllMocks();
 
     service = new SessionService(
-      mockSessionRepository as any,
-      mockPasswordService as any,
-      mockConfigService as any,
+      mockSessionRepository as unknown as SessionRepository,
+      mockPasswordService as unknown as PasswordService,
+      mockConfigService as unknown as ConfigService,
     );
   });
 
@@ -54,6 +57,7 @@ describe('SessionService', () => {
       expect(mockSessionRepository.findActiveSessionById).toHaveBeenCalledWith(
         'session-id',
         'user-id',
+        'tenant-id',
       );
       expect(mockPasswordService.verify).toHaveBeenCalledWith(
         'raw-refresh-token',

@@ -18,6 +18,7 @@ export default tseslint.config(
       parserOptions: {
         projectService: true,
         tsconfigRootDir: import.meta.dirname,
+        allowDefaultProject: ['**/*.spec.ts'],
       },
     },
   },

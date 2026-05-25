@@ -48,7 +48,7 @@ export class HealthController {
     const result: HealthCheckResult = await this.healthService.check();
 
     const httpStatus = this.resolveHttpStatus(result.status);
-    const success = httpStatus === HttpStatus.OK;
+    const success = httpStatus === Number(HttpStatus.OK);
 
     const message = this.resolveMessage(result.status);
 

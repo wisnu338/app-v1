@@ -230,12 +230,14 @@ export class AuthService {
     });
 
     // ── Step 9: Update lastLoginAt (fire-and-forget) ────────
-    void this.authRepository.updateLastLogin(user.id).catch((err: unknown) => {
-      this.logger.error(
-        `lastLoginAt update failed — userId=${user.id}: ` +
-          (err instanceof Error ? err.message : String(err)),
-      );
-    });
+    void this.authRepository
+      .updateLastLogin(user.id, user.tenantId)
+      .catch((err: unknown) => {
+        this.logger.error(
+          `lastLoginAt update failed — userId=${user.id}: ` +
+            (err instanceof Error ? err.message : String(err)),
+        );
+      });
 
     // AUDIT POINT: LOGIN_SUCCESS — userId, sessionId, tenantId, ipAddress
 
@@ -334,8 +336,12 @@ export class AuthService {
    * @param sessionId - From request.user (AuthUser via JwtAuthGuard)
    * @param userId    - From request.user
    */
-  async logout(sessionId: string, userId: string): Promise<void> {
-    await this.sessionService.revokeSession({ sessionId, userId });
+  async logout(
+    sessionId: string,
+    userId: string,
+    tenantId: string,
+  ): Promise<void> {
+    await this.sessionService.revokeSession({ sessionId, userId, tenantId });
     // AUDIT POINT: LOGOUT — userId, sessionId
     this.logger.log(`Logout — userId=${userId}, sessionId=${sessionId}`);
   }

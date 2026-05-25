@@ -114,7 +114,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
 
     // ── Step 6-8: Validate Session ────────────────────────
     const session = await this.prismaService.session.findFirst({
-      where: { id: sessionId, userId },
+      where: { id: sessionId, userId, tenantId },
       select: {
         id: true,
         revokedAt: true,

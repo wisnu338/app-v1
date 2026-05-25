@@ -46,5 +46,7 @@ import { REQUIRED_PERMISSION_KEY } from '@common/constants/permission.constants'
  *
  * @param permissions - One or more permission keys in module.action format
  */
-export const Permission = (...permissions: string[]) =>
+export const Permission = (
+  ...permissions: string[]
+): MethodDecorator & ClassDecorator =>
   SetMetadata(REQUIRED_PERMISSION_KEY, permissions);

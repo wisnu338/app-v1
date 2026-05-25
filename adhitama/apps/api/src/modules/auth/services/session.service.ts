@@ -30,6 +30,7 @@ export interface CreateSessionParams {
 export interface RevokeSessionParams {
   sessionId: string;
   userId: string;
+  tenantId: string;
 }
 
 /**
@@ -141,9 +142,9 @@ export class SessionService {
    * @param params - { sessionId, userId }
    */
   async revokeSession(params: RevokeSessionParams): Promise<void> {
-    const { sessionId, userId } = params;
+    const { sessionId, userId, tenantId } = params;
 
-    await this.sessionRepository.revoke(sessionId, userId);
+    await this.sessionRepository.revoke(sessionId, userId, tenantId);
 
     this.logger.log(`Session revoked — sessionId=${sessionId}, userId=${userId}`);
   }
@@ -194,12 +195,14 @@ export class SessionService {
     const activeSession = await this.sessionRepository.findActiveSessionById(
       sessionId,
       userId,
+      tenantId,
     );
 
     if (!activeSession) {
       const staleSession = await this.sessionRepository.findSessionById(
         sessionId,
         userId,
+        tenantId,
       );
 
       if (staleSession) {

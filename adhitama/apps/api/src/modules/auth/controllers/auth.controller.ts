@@ -114,7 +114,7 @@ export class AuthController {
   async logout(
     @CurrentUser() user: AuthUser,
   ): Promise<{ message: string }> {
-    await this.authService.logout(user.sessionId, user.id);
+    await this.authService.logout(user.sessionId, user.id, user.tenantId);
     // TODO: Audit log — logout (single device)
     return { message: 'Logged out successfully' };
   }

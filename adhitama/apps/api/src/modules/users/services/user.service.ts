@@ -6,6 +6,7 @@ import {
   BadRequestException,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import { randomBytes } from 'crypto';
 import { PasswordService } from '@infrastructure/password';
 import { UserRepository } from '../repositories/user.repository';
 import type { CreateUserData, UpdateUserData } from '../repositories/user.repository';
@@ -438,29 +439,36 @@ export class UserService {
    * Only the Argon2id hash is persisted.
    */
   private generateTemporaryPassword(): string {
-    const upper  = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // Omit I, O (confusing)
-    const lower  = 'abcdefghjkmnpqrstuvwxyz';  // Omit i, l, o (confusing)
-    const digits = '23456789';                  // Omit 0, 1 (confusing)
+    const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const lower = 'abcdefghjkmnpqrstuvwxyz';
+    const digits = '23456789';
     const symbols = '@#$!%';
     const charset = upper + lower + digits + symbols;
+    const bytes = randomBytes(64);
+    let cursor = 0;
 
-    // Guarantee at least one from each character class
+    const nextIndex = (max: number): number => {
+      const value = bytes[cursor] ?? 0;
+      cursor += 1;
+      return value % max;
+    };
+
     const mandatory = [
-      upper[Math.floor(Math.random() * upper.length)],
-      lower[Math.floor(Math.random() * lower.length)],
-      digits[Math.floor(Math.random() * digits.length)],
-      symbols[Math.floor(Math.random() * symbols.length)],
+      upper[nextIndex(upper.length)],
+      lower[nextIndex(lower.length)],
+      digits[nextIndex(digits.length)],
+      symbols[nextIndex(symbols.length)],
     ];
 
     const remaining = Array.from({ length: 8 }, () =>
-      charset[Math.floor(Math.random() * charset.length)],
+      charset[nextIndex(charset.length)],
     );
 
-    // Shuffle mandatory + remaining together
     const all = [...mandatory, ...remaining];
+
     for (let i = all.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [all[i], all[j]] = [all[j] as string, all[i] as string];
+      const j = nextIndex(i + 1);
+      [all[i], all[j]] = [all[j], all[i]];
     }
 
     return all.join('');

@@ -174,43 +174,57 @@ export class RbacRepository {
     tenantId: string,
     data: UpdateRoleData,
   ): Promise<RoleRecord | null> {
-    // Guard: verify role exists in tenant before update
-    const exists = await this.findRoleByIdFlat(id, tenantId);
-    if (!exists) return null;
-
-    const role = await this.prismaService.role.update({
-      where: { id },
+    const result = await this.prismaService.role.updateMany({
+      where: { id, tenantId },
       data: {
         ...(data.name        !== undefined ? { name: data.name }               : {}),
         ...(data.description !== undefined ? { description: data.description } : {}),
         ...(data.updatedById !== undefined ? { updatedById: data.updatedById } : {}),
       },
+    });
+
+    if (result.count !== 1) return null;
+
+    const role = await this.prismaService.role.findFirst({
+      where: { id, tenantId },
       select: this.roleSelect,
     });
 
-    return role;
+    return role ?? null;
   }
 
   /**
    * deleteRole() — delete a role row.
    *
    * Scoped by id + tenantId to prevent cross-tenant deletion.
-   * Returns true if deleted, false if not found in tenant.
+   * Returns true if deleted, false if not found in tenant or if users remain.
    *
-   * Note: Prisma FK constraints will prevent deletion if users are
-   * still assigned to this role (ON DELETE RESTRICT per schema).
-   * Business-layer validation (countUsersByRole) should run first.
-   * Repository does NOT enforce this — caller is responsible.
+   * The role and user-count checks execute inside a single transaction so
+   * concurrent reassignments cannot invalidate the safety check.
    */
   async deleteRole(id: string, tenantId: string): Promise<boolean> {
-    const exists = await this.findRoleByIdFlat(id, tenantId);
-    if (!exists) return false;
+    const result = await this.prismaService.$transaction(async (tx) => {
+      const role = await tx.role.findFirst({
+        where: { id, tenantId },
+        select: { id: true },
+      });
 
-    await this.prismaService.role.delete({
-      where: { id },
+      if (!role) return 0;
+
+      const userCount = await tx.user.count({
+        where: { roleId: id, tenantId, deletedAt: null },
+      });
+
+      if (userCount > 0) return 0;
+
+      await tx.role.delete({
+        where: { id },
+      });
+
+      return 1;
     });
 
-    return true;
+    return result === 1;
   }
 
   // ─── Permission Operations ─────────────────────────────────
@@ -263,15 +277,19 @@ export class RbacRepository {
   ): Promise<number> {
     if (permissionIds.length === 0) return 0;
 
-    const result = await this.prismaService.rolePermission.createMany({
-      data: permissionIds.map((permissionId) => ({
-        roleId,
-        permissionId,
-      })),
-      skipDuplicates: true,
+    const result = await this.prismaService.$transaction(async (tx) => {
+      const created = await tx.rolePermission.createMany({
+        data: permissionIds.map((permissionId) => ({
+          roleId,
+          permissionId,
+        })),
+        skipDuplicates: true,
+      });
+
+      return created.count;
     });
 
-    return result.count;
+    return result;
   }
 
   /**

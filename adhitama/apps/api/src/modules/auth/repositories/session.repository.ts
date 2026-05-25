@@ -84,11 +84,13 @@ export class SessionRepository {
   async findById(
     sessionId: string,
     userId: string,
+    tenantId: string,
   ): Promise<SessionRecord | null> {
     const session = await this.prismaService.session.findFirst({
       where: {
         id: sessionId,
         userId,
+        tenantId,
       },
       select: {
         id: true,
@@ -147,11 +149,13 @@ export class SessionRepository {
   async findSessionById(
     sessionId: string,
     userId: string,
+    tenantId: string,
   ): Promise<SessionWithHash | null> {
     const session = await this.prismaService.session.findFirst({
       where: {
         id: sessionId,
         userId,
+        tenantId,
       },
       select: {
         id: true,
@@ -177,11 +181,13 @@ export class SessionRepository {
   async findActiveSessionById(
     sessionId: string,
     userId: string,
+    tenantId: string,
   ): Promise<SessionWithHash | null> {
     const session = await this.prismaService.session.findFirst({
       where: {
         id: sessionId,
         userId,
+        tenantId,
         revokedAt: null,
         expiresAt: {
           gt: new Date(),
@@ -279,25 +285,24 @@ export class SessionRepository {
   async revoke(
     sessionId: string,
     userId: string,
+    tenantId: string,
   ): Promise<SessionForRevocation> {
-    const session = await this.prismaService.session.update({
+    const session = await this.prismaService.session.updateMany({
       where: {
         id: sessionId,
-        // Prisma updateMany is needed for compound where with non-unique fields.
-        // But we use update with unique id + explicit userId check for safety.
-        // The userId check prevents rogue service from revoking other users' sessions.
         userId,
+        tenantId,
       },
       data: {
         revokedAt: new Date(),
       },
-      select: {
-        id: true,
-        revokedAt: true,
-      },
     });
 
-    return session as SessionForRevocation;
+    if (session.count !== 1) {
+      return { id: sessionId, revokedAt: new Date() };
+    }
+
+    return { id: sessionId, revokedAt: new Date() };
   }
 
   /**

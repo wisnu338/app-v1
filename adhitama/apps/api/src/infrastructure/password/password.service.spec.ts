@@ -54,15 +54,10 @@ describe('PasswordService', () => {
       expect(hashed).toMatch(/^\$argon2id\$/);
     });
 
-    it('should throw InternalServerErrorException when argon2 fails', async () => {
-      // Simulate argon2 failure by mocking the module
-      jest
-        .spyOn(service as unknown as { hash: jest.Mock }, 'hash')
-        .mockRejectedValueOnce(new InternalServerErrorException());
-
+    it('should expose the hash method for contract verification', () => {
       // This test verifies the contract — actual implementation test
       // requires mocking argon2 internals which is tested in integration tests
-      expect(service.hash).toBeDefined();
+      expect(typeof service.hash).toBe('function');
     });
   });
 

@@ -5,6 +5,8 @@ import type { UserRecord, UserListQuery } from '../types/user.types';
 // Repository layer only.
 // No business logic allowed here.
 
+type UserStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+
 /**
  * CreateUserData — input shape for user.repository.create().
  *
@@ -19,7 +21,7 @@ export interface CreateUserData {
   email: string;
   passwordHash: string;
   nip?: string | null;
-  status?: string;
+  status?: UserStatus;
   mustChangePassword?: boolean;
   address?: string | null;
   contact?: string | null;
@@ -153,7 +155,7 @@ export class UserRepository {
     ]);
 
     return {
-      data: users.map(this.toUserRecord),
+      data: users.map((user) => this.toUserRecord(user)),
       meta: {
         page,
         limit,
@@ -294,7 +296,7 @@ export class UserRepository {
         email: data.email,
         passwordHash: data.passwordHash,
         nip: data.nip ?? null,
-        status: (data.status ?? 'ACTIVE') as any,
+        status: data.status ?? 'ACTIVE',
         mustChangePassword: data.mustChangePassword ?? true,
         address: data.address ?? null,
         contact: data.contact ?? null,
@@ -319,12 +321,8 @@ export class UserRepository {
     tenantId: string,
     data: UpdateUserData,
   ): Promise<UserRecord | null> {
-    // Guard: verify user exists in tenant before update
-    const exists = await this.findById(id, tenantId);
-    if (!exists) return null;
-
-    const user = await this.prismaService.user.update({
-      where: { id },
+    const result = await this.prismaService.user.updateMany({
+      where: { id, tenantId, deletedAt: null },
       data: {
         ...(data.name !== undefined     ? { name: data.name }         : {}),
         ...(data.roleId !== undefined   ? { roleId: data.roleId }     : {}),
@@ -333,10 +331,12 @@ export class UserRepository {
         ...(data.contact !== undefined  ? { contact: data.contact }   : {}),
         ...(data.avatarUrl !== undefined? { avatarUrl: data.avatarUrl }: {}),
       },
-      select: this.userSelect,
     });
 
-    return this.toUserRecord(user);
+    if (result.count !== 1) return null;
+
+    const user = await this.findById(id, tenantId);
+    return user;
   }
 
   /**
@@ -351,18 +351,17 @@ export class UserRepository {
   async updateStatus(
     id: string,
     tenantId: string,
-    status: string,
+    status: UserStatus,
   ): Promise<UserRecord | null> {
-    const exists = await this.findById(id, tenantId);
-    if (!exists) return null;
-
-    const user = await this.prismaService.user.update({
-      where: { id },
-      data: { status: status as any },
-      select: this.userSelect,
+    const result = await this.prismaService.user.updateMany({
+      where: { id, tenantId, deletedAt: null },
+      data: { status },
     });
 
-    return this.toUserRecord(user);
+    if (result.count !== 1) return null;
+
+    const user = await this.findById(id, tenantId);
+    return user;
   }
 
   /**
@@ -378,16 +377,12 @@ export class UserRepository {
    * @returns true if user was found and deleted, false if not found
    */
   async softDelete(id: string, tenantId: string): Promise<boolean> {
-    const exists = await this.findById(id, tenantId);
-    if (!exists) return false;
-
-    await this.prismaService.user.update({
-      where: { id },
+    const result = await this.prismaService.user.updateMany({
+      where: { id, tenantId, deletedAt: null },
       data: { deletedAt: new Date() },
-      select: { id: true },
     });
 
-    return true;
+    return result.count === 1;
   }
 
   // ─── Private Helpers ─────────────────────────────────────
