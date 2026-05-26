@@ -6,6 +6,7 @@ import { CoreAuthModule } from '@core/auth';
 import { HealthModule } from '@core/health';
 import { AuditModule } from '@modules/audit/audit.module';
 import { AuthModule } from '@modules/auth/auth.module';
+import { NotificationModule } from '@modules/notification/notification.module';
 import { UsersModule } from '@modules/users/users.module';
 import { RbacModule } from '@modules/rbac/rbac.module';
 import { TenantModule } from '@core/tenant/tenant.module';
@@ -60,6 +61,7 @@ import { TenantResolverMiddleware } from '@core/tenant/tenant-resolver.middlewar
     // ─── 5. Core Services ────────────────────────────────────
     HealthModule,
     AuditModule,
+    NotificationModule,
 
     // ─── 6. Business Modules ─────────────────────────────────
     AuthModule,

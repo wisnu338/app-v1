@@ -89,6 +89,47 @@ export const validationSchema = Joi.object({
       'Refresh token expiry. Format: {number}{unit} e.g. 7d, 30d. ' +
         'Longer-lived — revocation is enforced via Session table.',
     ),
+
+  // ─── Mail Infrastructure (Phase 2) ─────────────────────────
+  MAIL_PROVIDER: Joi.string()
+    .valid('none', 'smtp')
+    .default('none')
+    .description('Mail provider. Use smtp when an SMTP server is configured.'),
+
+  MAIL_SMTP_HOST: Joi.string()
+    .hostname()
+    .when('MAIL_PROVIDER', { is: 'smtp', then: Joi.required(), otherwise: Joi.optional() })
+    .description('SMTP server hostname, required when MAIL_PROVIDER=smtp.'),
+
+  MAIL_SMTP_PORT: Joi.number()
+    .integer()
+    .min(1)
+    .max(65535)
+    .default(587)
+    .when('MAIL_PROVIDER', { is: 'smtp', then: Joi.required(), otherwise: Joi.optional() })
+    .description('SMTP server port, required when MAIL_PROVIDER=smtp.'),
+
+  MAIL_SMTP_SECURE: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .default(false)
+    .description('Use SMTPS if true; otherwise use STARTTLS if supported by server.'),
+
+  MAIL_SMTP_USERNAME: Joi.string()
+    .when('MAIL_PROVIDER', { is: 'smtp', then: Joi.required(), otherwise: Joi.optional() })
+    .description('SMTP username, required when MAIL_PROVIDER=smtp.'),
+
+  MAIL_SMTP_PASSWORD: Joi.string()
+    .min(8)
+    .when('MAIL_PROVIDER', { is: 'smtp', then: Joi.required(), otherwise: Joi.optional() })
+    .description('SMTP password or API key, required when MAIL_PROVIDER=smtp.'),
+
+  MAIL_SMTP_FROM: Joi.string()
+    .email()
+    .when('MAIL_PROVIDER', { is: 'smtp', then: Joi.required(), otherwise: Joi.optional() })
+    .description('Default MAIL From address for outbound emails.'),
+
+  MAIL_SMTP_FROM_NAME: Joi.string().default('Adhitama ERP').description('Optional display name for outbound email sender.'),
 })
   // Allow unknown keys — OS may inject additional env vars (CI/CD, Docker, etc.)
   // abortEarly: false → show ALL validation errors at once, not just first

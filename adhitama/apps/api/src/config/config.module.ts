@@ -6,6 +6,7 @@ import { appConfig } from './app.config';
 import { authConfig } from './auth.config';
 import { databaseConfig } from './database.config';
 import { redisConfig } from './redis.config';
+import { mailConfig } from './mail.config';
 
 /**
  * ConfigModule — Global configuration and environment validation module.
@@ -38,7 +39,7 @@ import { redisConfig } from './redis.config';
       // Order does not matter here; all are loaded before any module
       // accesses them via ConfigService.
       // Phase 2 (Auth): authConfig added — JWT secrets and expiry.
-      load: [appConfig, authConfig, databaseConfig, redisConfig],
+      load: [appConfig, authConfig, databaseConfig, redisConfig, mailConfig],
 
       // ─── Validation ─────────────────────────────────────────
       // Joi schema from separate file for maintainability.
