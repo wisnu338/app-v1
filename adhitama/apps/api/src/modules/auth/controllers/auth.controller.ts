@@ -67,7 +67,6 @@ export class AuthController {
     @Body() dto: LoginDto,
     @Req() req: RequestWithTenant,
   ): Promise<LoginResponse> {
-    // TODO: Audit log — login attempt (before service call)
     const result = await this.authService.login({
       identifier: dto.identifier,
       password: dto.password,
@@ -76,7 +75,6 @@ export class AuthController {
       userAgent: req.headers['user-agent'] ?? null,
       deviceInfo: req.headers['x-device-info'] as string | null ?? null,
     });
-    // TODO: Audit log — login success (after service call)
     return result;
   }
 
@@ -99,7 +97,6 @@ export class AuthController {
       userAgent: req.headers['user-agent'] ?? null,
       deviceInfo: req.headers['x-device-info'] as string | null ?? null,
     });
-    // TODO: Audit log — refresh token rotated
     return result;
   }
 
@@ -114,9 +111,13 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async logout(
     @CurrentUser() user: AuthUser,
+    @Req() req: Request,
   ): Promise<{ message: string }> {
-    await this.authService.logout(user.sessionId, user.id, user.tenantId);
-    // TODO: Audit log — logout (single device)
+    await this.authService.logout(user.sessionId, user.id, user.tenantId, {
+      ipAddress: this.extractIpAddress(req),
+      userAgent: req.headers['user-agent'] ?? null,
+      sessionId: user.sessionId,
+    });
     return { message: 'Logged out successfully' };
   }
 
@@ -131,9 +132,13 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async logoutAll(
     @CurrentUser() user: AuthUser,
+    @Req() req: Request,
   ): Promise<{ message: string; sessionsRevoked: number }> {
-    const count = await this.authService.logoutAll(user.id, user.tenantId);
-    // TODO: Audit log — logout all devices
+    const count = await this.authService.logoutAll(user.id, user.tenantId, {
+      ipAddress: this.extractIpAddress(req),
+      userAgent: req.headers['user-agent'] ?? null,
+      sessionId: user.sessionId,
+    });
     return {
       message: 'All sessions revoked successfully',
       sessionsRevoked: count,

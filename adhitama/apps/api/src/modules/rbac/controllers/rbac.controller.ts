@@ -10,7 +10,9 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Req,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { JwtAuthGuard, CurrentUser, SecurityPolicyGuard } from '@core/auth';
 import type { AuthUser } from '@core/auth';
 import { PermissionGuard } from '@common/guards';
@@ -75,12 +77,19 @@ export class RbacController {
   async createRole(
     @Body() dto: CreateRoleDto,
     @CurrentUser() user: AuthUser,
+    @Req() req: Request,
   ): Promise<RoleRecord> {
     return this.rbacService.createRole({
       tenantId: user.tenantId,
       requestedById: user.id,
       name: dto.name,
       description: dto.description,
+      auditContext: {
+        userId: user.id,
+        ipAddress: this.extractIpAddress(req),
+        userAgent: req.headers['user-agent'] ?? null,
+        sessionId: user.sessionId,
+      },
     });
   }
 
@@ -93,11 +102,18 @@ export class RbacController {
     @Param('id') id: string,
     @Body() dto: UpdateRoleDto,
     @CurrentUser() user: AuthUser,
+    @Req() req: Request,
   ): Promise<RoleRecord> {
     return this.rbacService.updateRole(id, user.tenantId, {
       name: dto.name,
       description: dto.description,
       requestedById: user.id,
+      auditContext: {
+        userId: user.id,
+        ipAddress: this.extractIpAddress(req),
+        userAgent: req.headers['user-agent'] ?? null,
+        sessionId: user.sessionId,
+      },
     });
   }
 
@@ -113,8 +129,14 @@ export class RbacController {
   async deleteRole(
     @Param('id') id: string,
     @CurrentUser() user: AuthUser,
+    @Req() req: Request,
   ): Promise<void> {
-    await this.rbacService.deleteRole(id, user.tenantId);
+    await this.rbacService.deleteRole(id, user.tenantId, {
+      userId: user.id,
+      ipAddress: this.extractIpAddress(req),
+      userAgent: req.headers['user-agent'] ?? null,
+      sessionId: user.sessionId,
+    });
   }
 
   // ─── GET /permissions ─────────────────────────────────────
@@ -144,11 +166,18 @@ export class RbacController {
     @Param('id') roleId: string,
     @Body() dto: AssignPermissionDto,
     @CurrentUser() user: AuthUser,
+    @Req() req: Request,
   ): Promise<RoleWithPermissions> {
     return this.rbacService.assignPermissions({
       roleId,
       tenantId: user.tenantId,
       permissionIds: dto.permissionIds,
+      auditContext: {
+        userId: user.id,
+        ipAddress: this.extractIpAddress(req),
+        userAgent: req.headers['user-agent'] ?? null,
+        sessionId: user.sessionId,
+      },
     });
   }
 
@@ -166,7 +195,22 @@ export class RbacController {
     @Param('id') roleId: string,
     @Param('permissionId') permissionId: string,
     @CurrentUser() user: AuthUser,
+    @Req() req: Request,
   ): Promise<RoleWithPermissions> {
-    return this.rbacService.removePermission(roleId, user.tenantId, permissionId);
+    return this.rbacService.removePermission(roleId, user.tenantId, permissionId, {
+      userId: user.id,
+      ipAddress: this.extractIpAddress(req),
+      userAgent: req.headers['user-agent'] ?? null,
+      sessionId: user.sessionId,
+    });
+  }
+
+  private extractIpAddress(req: Request): string | null {
+    const forwarded = req.headers['x-forwarded-for'];
+    if (forwarded) {
+      const ip = Array.isArray(forwarded) ? forwarded[0] : forwarded.split(',')[0];
+      return (ip ?? '').trim() || null;
+    }
+    return req.socket.remoteAddress ?? null;
   }
 }

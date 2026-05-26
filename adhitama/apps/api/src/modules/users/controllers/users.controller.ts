@@ -10,7 +10,9 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Req,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { JwtAuthGuard, CurrentUser, SecurityPolicyGuard } from '@core/auth';
 import type { AuthUser } from '@core/auth';
 import { PermissionGuard } from '@common/guards';
@@ -88,6 +90,7 @@ export class UsersController {
   async createUser(
     @Body() dto: CreateUserDto,
     @CurrentUser() user: AuthUser,
+    @Req() req: Request,
   ): Promise<CreateUserResult> {
     return this.userService.createUser({
       tenantId: user.tenantId,
@@ -98,6 +101,12 @@ export class UsersController {
       address: dto.address,
       contact: dto.contact,
       avatarUrl: dto.avatarUrl,
+      auditContext: {
+        userId: user.id,
+        ipAddress: this.extractIpAddress(req),
+        userAgent: req.headers['user-agent'] ?? null,
+        sessionId: user.sessionId,
+      },
     });
   }
 
@@ -110,6 +119,7 @@ export class UsersController {
     @Param('id') id: string,
     @Body() dto: UpdateUserDto,
     @CurrentUser() user: AuthUser,
+    @Req() req: Request,
   ): Promise<UserResponse> {
     return this.userService.updateUser(id, user.tenantId, {
       name: dto.name,
@@ -117,6 +127,12 @@ export class UsersController {
       address: dto.address,
       contact: dto.contact,
       avatarUrl: dto.avatarUrl,
+      auditContext: {
+        userId: user.id,
+        ipAddress: this.extractIpAddress(req),
+        userAgent: req.headers['user-agent'] ?? null,
+        sessionId: user.sessionId,
+      },
     });
   }
 
@@ -132,10 +148,17 @@ export class UsersController {
     @Param('id') id: string,
     @Body() dto: UpdateStatusDto,
     @CurrentUser() user: AuthUser,
+    @Req() req: Request,
   ): Promise<UserResponse> {
     return this.userService.updateUserStatus(id, user.tenantId, {
       status: dto.status,
       requestedById: user.id,
+      auditContext: {
+        userId: user.id,
+        ipAddress: this.extractIpAddress(req),
+        userAgent: req.headers['user-agent'] ?? null,
+        sessionId: user.sessionId,
+      },
     });
   }
 
@@ -151,7 +174,22 @@ export class UsersController {
   async deleteUser(
     @Param('id') id: string,
     @CurrentUser() user: AuthUser,
+    @Req() req: Request,
   ): Promise<void> {
-    await this.userService.deleteUser(id, user.tenantId);
+    await this.userService.deleteUser(id, user.tenantId, {
+      userId: user.id,
+      ipAddress: this.extractIpAddress(req),
+      userAgent: req.headers['user-agent'] ?? null,
+      sessionId: user.sessionId,
+    });
+  }
+
+  private extractIpAddress(req: Request): string | null {
+    const forwarded = req.headers['x-forwarded-for'];
+    if (forwarded) {
+      const ip = Array.isArray(forwarded) ? forwarded[0] : forwarded.split(',')[0];
+      return (ip ?? '').trim() || null;
+    }
+    return req.socket.remoteAddress ?? null;
   }
 }

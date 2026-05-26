@@ -143,3 +143,12 @@ Overall Status: ⚠ PARTIALLY COMPLIANT
 **Risk Level:** S2
 **Why This Is Dangerous:** Soft-deleted users may become visible to some flows or be incorrectly updated.
 **Required Fix:** Ensure all user/entity reads use repository methods or explicit `deletedAt: null` filters.
+
+---
+
+## Audit logging foundation
+**Current Implementation:** `AuditModule`, `AuditService`, `AuditRepository`, metadata sanitization, and feature-level audit hooks are implemented for auth, user, and RBAC flows.
+**Compliance Status:** ✅ FULLY COMPLIANT
+**Risk Level:** S3
+**Why This Is Dangerous:** Audit records are best-effort; if the audit write fails the primary flow continues, so operational monitoring must treat audit failures as a support signal.
+**Required Fix:** Continue monitoring audit write failures and expand coverage for future modules.

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AuditModule } from '@modules/audit/audit.module';
 import { RbacController } from './controllers/rbac.controller';
 import { RbacService } from './services/rbac.service';
 import { RbacRepository } from './repositories/rbac.repository';
@@ -27,6 +28,7 @@ import { RbacRepository } from './repositories/rbac.repository';
  *   - AdminModule (cross-tenant RBAC management)
  */
 @Module({
+  imports: [AuditModule],
   controllers: [RbacController],
   providers: [
     RbacRepository,

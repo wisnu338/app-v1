@@ -9,6 +9,7 @@ jest.mock('crypto', () => {
 
 import * as crypto from 'crypto';
 import { PasswordService } from '@infrastructure/password';
+import type { AuditService } from '@modules/audit/services';
 import type { UserRepository } from '../repositories/user.repository';
 import { UserService } from './user.service';
 import type { NipHelper } from '../helpers/nip.helper';
@@ -36,10 +37,15 @@ describe('UserService', () => {
     generateNip: jest.fn(),
   };
 
+  const auditService = {
+    fireAndForget: jest.fn(),
+  };
+
   const service = new UserService(
     userRepository as unknown as UserRepository,
     passwordService as unknown as PasswordService,
     nipHelper as unknown as NipHelper,
+    auditService as unknown as AuditService,
   );
 
   beforeEach(() => {

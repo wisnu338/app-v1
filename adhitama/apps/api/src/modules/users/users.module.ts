@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { PasswordModule } from '@infrastructure/password';
+import { AuditModule } from '@modules/audit/audit.module';
 import { UsersController } from './controllers/users.controller';
 import { UserService } from './services/user.service';
 import { UserRepository } from './repositories/user.repository';
@@ -29,7 +30,7 @@ import { NipHelper } from './helpers/nip.helper';
  *   - ReportModule (user activity reports)
  */
 @Module({
-  imports: [PasswordModule],
+  imports: [PasswordModule, AuditModule],
   controllers: [UsersController],
   providers: [
     UserRepository,

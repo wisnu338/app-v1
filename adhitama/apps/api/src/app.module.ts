@@ -4,6 +4,7 @@ import { DatabaseModule } from '@core/database';
 import { RedisModule } from '@core/redis';
 import { CoreAuthModule } from '@core/auth';
 import { HealthModule } from '@core/health';
+import { AuditModule } from '@modules/audit/audit.module';
 import { AuthModule } from '@modules/auth/auth.module';
 import { UsersModule } from '@modules/users/users.module';
 import { RbacModule } from '@modules/rbac/rbac.module';
@@ -58,6 +59,7 @@ import { TenantResolverMiddleware } from '@core/tenant/tenant-resolver.middlewar
 
     // ─── 5. Core Services ────────────────────────────────────
     HealthModule,
+    AuditModule,
 
     // ─── 6. Business Modules ─────────────────────────────────
     AuthModule,

@@ -8,6 +8,8 @@ import {
 } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { PasswordService } from '@infrastructure/password';
+import { AUDIT_EVENT } from '@modules/audit/constants';
+import { AuditService } from '@modules/audit/services';
 import { UserRepository } from '../repositories/user.repository';
 import type { CreateUserData, UpdateUserData } from '../repositories/user.repository';
 import { NipHelper } from '../helpers/nip.helper';
@@ -34,6 +36,7 @@ export interface CreateUserInput {
   address?: string | null;
   contact?: string | null;
   avatarUrl?: string | null;
+  auditContext?: AuditRequestContext;
 }
 
 /**
@@ -67,6 +70,7 @@ export interface UpdateUserInput {
   address?: string | null;
   contact?: string | null;
   avatarUrl?: string | null;
+  auditContext?: AuditRequestContext;
 }
 
 /**
@@ -76,6 +80,14 @@ export interface UpdateStatusInput {
   status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
   /** ID of the requesting user — for self-action checks */
   requestedById: string;
+  auditContext?: AuditRequestContext;
+}
+
+interface AuditRequestContext {
+  userId?: string | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  sessionId?: string | null;
 }
 
 /** Role name of the OWNER system role — used for NIP and deletion guards */
@@ -99,9 +111,8 @@ const OWNER_ROLE_NAME = 'OWNER' as const;
  *   - No controller logic
  *   - No RBAC permission checks (enforced at guard level)
  *   - No email sending (deferred to future notification phase)
- *   - No audit implementation (TODO markers in place)
  *
- * Audit awareness (AuditModule deferred — Phase 2+):
+ * Audit events emitted from this service:
  *   - USER_CREATED
  *   - USER_UPDATED
  *   - USER_STATUS_CHANGED
@@ -115,6 +126,7 @@ export class UserService {
     private readonly userRepository: UserRepository,
     private readonly passwordService: PasswordService,
     private readonly nipHelper: NipHelper,
+    private readonly auditService: AuditService,
   ) {}
 
   // ─── Public Methods ────────────────────────────────────────
@@ -224,7 +236,22 @@ export class UserService {
 
     const user = await this.userRepository.create(createData);
 
-    // TODO: Audit log — USER_CREATED (userId, tenantId, requestedById, roleId)
+    this.auditService.fireAndForget({
+      tenantId,
+      actorUserId: input.requestedById,
+      action: AUDIT_EVENT.USER_CREATED,
+      entityType: 'User',
+      entityId: user.id,
+      sessionId: input.auditContext?.sessionId ?? null,
+      metadata: {
+        roleId,
+        name,
+        email,
+        status: 'ACTIVE',
+      },
+      ipAddress: input.auditContext?.ipAddress ?? null,
+      userAgent: input.auditContext?.userAgent ?? null,
+    });
 
     this.logger.log(
       `User created — userId=${user.id}, tenantId=${tenantId}, roleId=${roleId}`,
@@ -281,7 +308,19 @@ export class UserService {
       throw new NotFoundException(`User not found`);
     }
 
-    // TODO: Audit log — USER_UPDATED (userId, tenantId, changedFields)
+    this.auditService.fireAndForget({
+      tenantId,
+      actorUserId: input.auditContext?.userId ?? null,
+      action: AUDIT_EVENT.USER_UPDATED,
+      entityType: 'User',
+      entityId: updated.id,
+      sessionId: input.auditContext?.sessionId ?? null,
+      metadata: {
+        changedFields: Object.keys(updateData),
+      },
+      ipAddress: input.auditContext?.ipAddress ?? null,
+      userAgent: input.auditContext?.userAgent ?? null,
+    });
 
     this.logger.log(`User updated — userId=${id}, tenantId=${tenantId}`);
 
@@ -341,7 +380,20 @@ export class UserService {
       throw new NotFoundException(`User not found`);
     }
 
-    // TODO: Audit log — USER_STATUS_CHANGED (userId, fromStatus, toStatus, requestedById)
+    this.auditService.fireAndForget({
+      tenantId,
+      actorUserId: input.auditContext?.userId ?? input.requestedById,
+      action: AUDIT_EVENT.USER_STATUS_CHANGED,
+      entityType: 'User',
+      entityId: updated.id,
+      sessionId: input.auditContext?.sessionId ?? null,
+      metadata: {
+        fromStatus: user.status,
+        toStatus: input.status,
+      },
+      ipAddress: input.auditContext?.ipAddress ?? null,
+      userAgent: input.auditContext?.userAgent ?? null,
+    });
 
     this.logger.log(
       `User status updated — userId=${id}, ` +
@@ -366,7 +418,11 @@ export class UserService {
    * @throws NotFoundException if user not found
    * @throws UnprocessableEntityException if deleting last active OWNER
    */
-  async deleteUser(id: string, tenantId: string): Promise<void> {
+  async deleteUser(
+    id: string,
+    tenantId: string,
+    auditContext?: AuditRequestContext,
+  ): Promise<void> {
     const user = await this.userRepository.findById(id, tenantId);
     if (!user) {
       throw new NotFoundException(`User not found`);
@@ -381,8 +437,19 @@ export class UserService {
       throw new NotFoundException(`User not found`);
     }
 
-    // TODO: Audit log — USER_DELETED (userId, tenantId, deletedAt)
-    // TODO: Revoke all sessions for this user (SessionService, future phase)
+    this.auditService.fireAndForget({
+      tenantId,
+      actorUserId: auditContext?.userId ?? null,
+      action: AUDIT_EVENT.USER_DELETED,
+      entityType: 'User',
+      entityId: user.id,
+      sessionId: auditContext?.sessionId ?? null,
+      metadata: {
+        deletedAt: new Date().toISOString(),
+      },
+      ipAddress: auditContext?.ipAddress ?? null,
+      userAgent: auditContext?.userAgent ?? null,
+    });
 
     this.logger.log(`User soft-deleted — userId=${id}, tenantId=${tenantId}`);
   }

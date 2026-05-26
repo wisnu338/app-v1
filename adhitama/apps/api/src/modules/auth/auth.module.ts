@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { CoreAuthModule } from '@core/auth';
 import { PasswordModule } from '@infrastructure/password';
+import { AuditModule } from '@modules/audit/audit.module';
 import { AuthController } from './controllers/auth.controller';
 import { AuthService } from './services/auth.service';
 import { AuthSecurityService } from './services/auth-security.service';
@@ -39,6 +40,7 @@ import { SessionRepository } from './repositories/session.repository';
     CoreAuthModule,
     // Provides: PasswordService (Argon2id hash + verify)
     PasswordModule,
+    AuditModule,
   ],
   controllers: [AuthController],
   providers: [

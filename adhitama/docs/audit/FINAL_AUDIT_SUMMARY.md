@@ -10,6 +10,7 @@
 - RBAC and session-based auth concepts are present.
 - Global validation and exception patterns are in place.
 - Documentation shows awareness of enterprise-grade requirements.
+- Audit logging foundation is now implemented for auth, user, and RBAC flows.
 
 ## 3. Key Risks
 - Refresh token replay and session validation gaps have been addressed by refresh token ownership validation and atomic rotation.
@@ -26,6 +27,14 @@
 - Security hardening of auth and session handling will deliver the largest immediate benefit.
 - Improving architecture consistency will make future financial, rental, and reporting modules more reliable.
 - Closing the documentation-to-code gap will reduce audit failure risk during enterprise deployment.
+- The new audit foundation creates a durable baseline for future compliance and incident response work.
+
+## 6. P1 Audit Logging Status
+- `AuditModule` exists and is wired into the application and feature modules.
+- `AuthService`, `UserService`, and `RbacService` now emit best-effort audit events.
+- Metadata sanitization is applied before persistence.
+- Controllers forward request IP, user-agent, and session context so the audit records are operationally useful.
+- Remaining follow-up: extend audit instrumentation to any future modules and monitor audit write failures in production.
 
 ## Architecture Validation (Phase S1.2) — Summary
 

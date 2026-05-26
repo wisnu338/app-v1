@@ -6,6 +6,8 @@ import {
 import { PasswordService } from '@infrastructure/password';
 import { TokenService } from '@core/auth';
 import type { TokenPair } from '@core/auth';
+import { AUDIT_EVENT } from '@modules/audit/constants';
+import { AuditService } from '@modules/audit/services';
 import { SessionService } from './session.service';
 import { AuthSecurityService } from './auth-security.service';
 import { AuthRepository } from '../repositories/auth.repository';
@@ -86,6 +88,12 @@ export interface RefreshInput {
   userAgent?: string | null;
 }
 
+interface AuditRequestContext {
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  sessionId?: string | null;
+}
+
 /**
  * AuthService — authentication orchestration layer.
  *
@@ -117,12 +125,12 @@ export interface RefreshInput {
  *   ALL login failures → UnauthorizedException() with no detail.
  *   Internal reason logged at WARN for security monitoring.
  *
- * Audit event points (AuditModule deferred to Phase 2+):
- *   LOGIN_SUCCESS         : after session created + tokens signed
- *   LOGIN_FAILED          : at each failure point in login()
- *   LOGOUT                : after session revoked
- *   LOGOUT_ALL            : after all sessions revoked
- *   REFRESH_TOKEN_ROTATED : after new session created
+ * Audit events emitted from this service:
+ *   LOGIN_SUCCESS : after session created + tokens signed
+ *   LOGIN_FAILED  : at each failure point in login()
+ *   LOGOUT        : after session revoked
+ *   LOGOUT_ALL    : after all sessions revoked
+ *   TOKEN_REFRESH : after token rotation succeeds
  *
  * emailVerifiedAt awareness:
  *   NOT blocking login currently. Future phase may add:
@@ -139,6 +147,7 @@ export class AuthService {
     private readonly tokenService: TokenService,
     private readonly passwordService: PasswordService,
     private readonly authSecurityService: AuthSecurityService,
+    private readonly auditService: AuditService,
   ) {}
 
   // ─── Login ─────────────────────────────────────────────────
@@ -189,7 +198,20 @@ export class AuthService {
         ipAddress: ipAddress ?? null,
         userAgent: userAgent ?? null,
       });
-      // AUDIT POINT: LOGIN_FAILED (user not found)
+      this.auditService.fireAndForget({
+        tenantId,
+        action: AUDIT_EVENT.LOGIN_FAILED,
+        entityType: 'User',
+        entityId: identifier,
+        metadata: {
+          identifier,
+          reason: 'not_found',
+          authMethod: isEmail ? 'email' : 'nip',
+          deviceInfo: deviceInfo ?? null,
+        },
+        ipAddress: ipAddress ?? null,
+        userAgent: userAgent ?? null,
+      });
       throw new UnauthorizedException();
     }
 
@@ -206,7 +228,21 @@ export class AuthService {
         ipAddress: ipAddress ?? null,
         userAgent: userAgent ?? null,
       });
-      // AUDIT POINT: LOGIN_FAILED (inactive/suspended)
+      this.auditService.fireAndForget({
+        tenantId,
+        action: AUDIT_EVENT.LOGIN_FAILED,
+        entityType: 'User',
+        entityId: user.id,
+        metadata: {
+          identifier,
+          reason: 'not_active',
+          status: user.status,
+          authMethod: isEmail ? 'email' : 'nip',
+          deviceInfo: deviceInfo ?? null,
+        },
+        ipAddress: ipAddress ?? null,
+        userAgent: userAgent ?? null,
+      });
       throw new UnauthorizedException();
     }
 
@@ -224,7 +260,20 @@ export class AuthService {
         ipAddress: ipAddress ?? null,
         userAgent: userAgent ?? null,
       });
-      // AUDIT POINT: LOGIN_FAILED (wrong password)
+      this.auditService.fireAndForget({
+        tenantId,
+        action: AUDIT_EVENT.LOGIN_FAILED,
+        entityType: 'User',
+        entityId: user.id,
+        metadata: {
+          identifier,
+          reason: 'bad_credentials',
+          authMethod: isEmail ? 'email' : 'nip',
+          deviceInfo: deviceInfo ?? null,
+        },
+        ipAddress: ipAddress ?? null,
+        userAgent: userAgent ?? null,
+      });
       throw new UnauthorizedException();
     }
 
@@ -259,6 +308,22 @@ export class AuthService {
     await this.authSecurityService.recordLoginSuccess({
       identifier,
       tenantId,
+      ipAddress: ipAddress ?? null,
+      userAgent: userAgent ?? null,
+    });
+
+    this.auditService.fireAndForget({
+      tenantId: user.tenantId,
+      actorUserId: user.id,
+      action: AUDIT_EVENT.LOGIN_SUCCESS,
+      entityType: 'User',
+      entityId: user.id,
+      sessionId: preSessionId,
+      metadata: {
+        identifier,
+        authMethod: isEmail ? 'email' : 'nip',
+        deviceInfo: deviceInfo ?? null,
+      },
       ipAddress: ipAddress ?? null,
       userAgent: userAgent ?? null,
     });
@@ -361,7 +426,20 @@ export class AuthService {
         userAgent: userAgent ?? null,
       });
 
-      // AUDIT POINT: REFRESH_TOKEN_ROTATED — userId, oldSessionId, newSessionId
+      this.auditService.fireAndForget({
+        tenantId: payload.tenantId,
+        actorUserId: payload.sub,
+        action: AUDIT_EVENT.TOKEN_REFRESH,
+        entityType: 'Session',
+        entityId: newSessionId,
+        sessionId: newSessionId,
+        metadata: {
+          previousSessionId: payload.sessionId,
+          deviceInfo: deviceInfo ?? null,
+        },
+        ipAddress: ipAddress ?? null,
+        userAgent: userAgent ?? null,
+      });
 
       this.logger.log(
         `Token rotation — userId=${payload.sub}, ` +
@@ -392,9 +470,24 @@ export class AuthService {
     sessionId: string,
     userId: string,
     tenantId: string,
+    auditContext?: AuditRequestContext,
   ): Promise<void> {
     await this.sessionService.revokeSession({ sessionId, userId, tenantId });
-    // AUDIT POINT: LOGOUT — userId, sessionId
+
+    this.auditService.fireAndForget({
+      tenantId,
+      actorUserId: userId,
+      action: AUDIT_EVENT.LOGOUT,
+      entityType: 'Session',
+      entityId: sessionId,
+      sessionId,
+      metadata: {
+        sessionsRevoked: 1,
+      },
+      ipAddress: auditContext?.ipAddress ?? null,
+      userAgent: auditContext?.userAgent ?? null,
+    });
+
     this.logger.log(`Logout — userId=${userId}, sessionId=${sessionId}`);
   }
 
@@ -404,9 +497,27 @@ export class AuthService {
    * @param tenantId - From request.user
    * @returns Count of revoked sessions
    */
-  async logoutAll(userId: string, tenantId: string): Promise<number> {
+  async logoutAll(
+    userId: string,
+    tenantId: string,
+    auditContext?: AuditRequestContext,
+  ): Promise<number> {
     const count = await this.sessionService.revokeAllSessions(userId, tenantId);
-    // AUDIT POINT: LOGOUT_ALL — userId, tenantId, count
+
+    this.auditService.fireAndForget({
+      tenantId,
+      actorUserId: userId,
+      action: AUDIT_EVENT.LOGOUT_ALL,
+      entityType: 'Session',
+      entityId: userId,
+      sessionId: auditContext?.sessionId ?? null,
+      metadata: {
+        sessionsRevoked: count,
+      },
+      ipAddress: auditContext?.ipAddress ?? null,
+      userAgent: auditContext?.userAgent ?? null,
+    });
+
     this.logger.log(`Logout all — userId=${userId}, revoked=${count}`);
     return count;
   }

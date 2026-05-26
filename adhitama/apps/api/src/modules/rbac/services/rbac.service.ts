@@ -8,6 +8,8 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { SYSTEM_ROLE_NAMES, isSystemRole } from '@common/constants/system-role.constants';
+import { AUDIT_EVENT } from '@modules/audit/constants';
+import { AuditService } from '@modules/audit/services';
 import { RbacRepository } from '../repositories/rbac.repository';
 import type {
   RoleRecord,
@@ -28,6 +30,7 @@ export interface CreateRoleInput {
   description?: string | null;
   /** ID of the requesting user — for audit trail storage in createdById */
   requestedById: string;
+  auditContext?: AuditRequestContext;
 }
 
 /**
@@ -38,6 +41,7 @@ export interface UpdateRoleInput {
   description?: string | null;
   /** ID of the requesting user — stored in updatedById */
   requestedById: string;
+  auditContext?: AuditRequestContext;
 }
 
 /**
@@ -47,6 +51,14 @@ export interface AssignPermissionsInput {
   roleId: string;
   tenantId: string;
   permissionIds: string[];
+  auditContext?: AuditRequestContext;
+}
+
+interface AuditRequestContext {
+  userId?: string | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  sessionId?: string | null;
 }
 
 /**
@@ -71,7 +83,7 @@ export interface AssignPermissionsInput {
  *   - OWNER      : cannot be renamed, deleted, or have permissions modified
  *   - SUPER_ADMIN: cannot be renamed, deleted, or have permissions modified
  *
- * Audit awareness (AuditModule deferred — Phase 2+):
+ * Audit events emitted from this service:
  *   - ROLE_CREATED
  *   - ROLE_UPDATED
  *   - ROLE_DELETED
@@ -84,6 +96,7 @@ export class RbacService {
 
   constructor(
     private readonly rbacRepository: RbacRepository,
+    private readonly auditService: AuditService,
   ) {}
 
   // ─── Role Read Operations ──────────────────────────────────
@@ -151,7 +164,20 @@ export class RbacService {
 
     const role = await this.rbacRepository.createRole(data);
 
-    // TODO: Audit log — ROLE_CREATED (roleId, tenantId, requestedById)
+    this.auditService.fireAndForget({
+      tenantId,
+      actorUserId: input.auditContext?.userId ?? requestedById,
+      action: AUDIT_EVENT.ROLE_CREATED,
+      entityType: 'Role',
+      entityId: role.id,
+      sessionId: input.auditContext?.sessionId ?? null,
+      metadata: {
+        name,
+        description: description ?? null,
+      },
+      ipAddress: input.auditContext?.ipAddress ?? null,
+      userAgent: input.auditContext?.userAgent ?? null,
+    });
 
     this.logger.log(
       `Role created — roleId=${role.id}, name=${role.name}, tenantId=${tenantId}`,
@@ -201,7 +227,19 @@ export class RbacService {
       throw new NotFoundException(`Role not found`);
     }
 
-    // TODO: Audit log — ROLE_UPDATED (roleId, tenantId, requestedById, changedFields)
+    this.auditService.fireAndForget({
+      tenantId,
+      actorUserId: input.auditContext?.userId ?? requestedById,
+      action: AUDIT_EVENT.ROLE_UPDATED,
+      entityType: 'Role',
+      entityId: updated.id,
+      sessionId: input.auditContext?.sessionId ?? null,
+      metadata: {
+        changedFields: Object.keys(data).filter((key) => key !== 'updatedById'),
+      },
+      ipAddress: input.auditContext?.ipAddress ?? null,
+      userAgent: input.auditContext?.userAgent ?? null,
+    });
 
     this.logger.log(`Role updated — roleId=${id}, tenantId=${tenantId}`);
 
@@ -217,7 +255,11 @@ export class RbacService {
    *   3. Assert no users assigned (countUsersByRole must be 0)
    *   4. Delete via repository
    */
-  async deleteRole(id: string, tenantId: string): Promise<void> {
+  async deleteRole(
+    id: string,
+    tenantId: string,
+    auditContext?: AuditRequestContext,
+  ): Promise<void> {
     // Rule: role must exist
     const existing = await this.validateRoleExists(id, tenantId);
 
@@ -233,7 +275,19 @@ export class RbacService {
       throw new NotFoundException(`Role not found`);
     }
 
-    // TODO: Audit log — ROLE_DELETED (roleId, tenantId)
+    this.auditService.fireAndForget({
+      tenantId,
+      actorUserId: auditContext?.userId ?? null,
+      action: AUDIT_EVENT.ROLE_DELETED,
+      entityType: 'Role',
+      entityId: existing.id,
+      sessionId: auditContext?.sessionId ?? null,
+      metadata: {
+        name: existing.name,
+      },
+      ipAddress: auditContext?.ipAddress ?? null,
+      userAgent: auditContext?.userAgent ?? null,
+    });
 
     this.logger.log(`Role deleted — roleId=${id}, tenantId=${tenantId}`);
   }
@@ -289,7 +343,19 @@ export class RbacService {
 
     await this.rbacRepository.assignPermissions(roleId, uniqueIds);
 
-    // TODO: Audit log — PERMISSIONS_ASSIGNED (roleId, tenantId, permissionIds)
+    this.auditService.fireAndForget({
+      tenantId,
+      actorUserId: input.auditContext?.userId ?? null,
+      action: AUDIT_EVENT.PERMISSIONS_ASSIGNED,
+      entityType: 'Role',
+      entityId: role.id,
+      sessionId: input.auditContext?.sessionId ?? null,
+      metadata: {
+        permissionIds: uniqueIds,
+      },
+      ipAddress: input.auditContext?.ipAddress ?? null,
+      userAgent: input.auditContext?.userAgent ?? null,
+    });
 
     this.logger.log(
       `Permissions assigned — roleId=${roleId}, count=${uniqueIds.length}`,
@@ -315,6 +381,7 @@ export class RbacService {
     roleId: string,
     tenantId: string,
     permissionId: string,
+    auditContext?: AuditRequestContext,
   ): Promise<RoleWithPermissions> {
     // Step 1+2: role must exist and not be a system role
     const role = await this.validateRoleExists(roleId, tenantId);
@@ -331,7 +398,19 @@ export class RbacService {
 
     await this.rbacRepository.removePermission(roleId, permissionId);
 
-    // TODO: Audit log — PERMISSION_REMOVED (roleId, tenantId, permissionId)
+    this.auditService.fireAndForget({
+      tenantId,
+      actorUserId: auditContext?.userId ?? null,
+      action: AUDIT_EVENT.PERMISSION_REMOVED,
+      entityType: 'Role',
+      entityId: role.id,
+      sessionId: auditContext?.sessionId ?? null,
+      metadata: {
+        permissionId,
+      },
+      ipAddress: auditContext?.ipAddress ?? null,
+      userAgent: auditContext?.userAgent ?? null,
+    });
 
     this.logger.log(
       `Permission removed — roleId=${roleId}, permissionId=${permissionId}`,
