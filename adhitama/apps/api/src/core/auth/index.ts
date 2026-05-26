@@ -3,6 +3,7 @@ export { CoreAuthModule } from './auth.module';
 
 // ─── Guards ──────────────────────────────────────────────────
 export { JwtAuthGuard } from './guards/jwt-auth.guard';
+export { SecurityPolicyGuard } from './guards/security-policy.guard';
 
 // ─── Decorators ──────────────────────────────────────────────
 export { CurrentUser } from './decorators/current-user.decorator';

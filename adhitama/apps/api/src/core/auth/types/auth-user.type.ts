@@ -14,8 +14,8 @@
  *
  * Intentionally excluded fields:
  *   passwordHash       — never leaves the DB layer
- *   emailVerifiedAt    — security-sensitive; checked at service layer
- *   mustChangePassword — security-sensitive; enforced at auth service layer
+ *   emailVerifiedAt    — security-sensitive; exposed as boolean to guards
+ *   mustChangePassword — security-sensitive; exposed as boolean to guards
  *   permissions[]      — loaded from DB by PermissionGuard when needed
  *   avatarUrl / name   — presentation data; fetch from DB when needed
  *   status             — validated by JwtStrategy; valid session implies ACTIVE
@@ -39,4 +39,8 @@ export interface AuthUser {
   sessionId: string;
   /** Role ID. Used by PermissionGuard to load role permissions from DB. */
   roleId: string;
+  /** Whether the user must change their password before accessing protected routes. */
+  mustChangePassword: boolean;
+  /** Whether the user's email has been verified. */
+  emailVerified: boolean;
 }

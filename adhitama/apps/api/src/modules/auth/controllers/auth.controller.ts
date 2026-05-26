@@ -11,6 +11,7 @@ import {
 import type { Request } from 'express';
 import { JwtAuthGuard, CurrentUser } from '@core/auth';
 import type { AuthUser } from '@core/auth';
+import type { RequestWithTenant } from '@common/types/request-tenant.type';
 import { AuthService } from '../services/auth.service';
 import type { LoginResponse, RefreshResponse, MeResponse } from '../services/auth.service';
 import { LoginDto } from '../dto/login.dto';
@@ -64,13 +65,13 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async login(
     @Body() dto: LoginDto,
-    @Req() req: Request,
+    @Req() req: RequestWithTenant,
   ): Promise<LoginResponse> {
     // TODO: Audit log — login attempt (before service call)
     const result = await this.authService.login({
       identifier: dto.identifier,
       password: dto.password,
-      tenantId: this.extractTenantId(req),
+      tenantId: req.tenant.tenantId,
       ipAddress: this.extractIpAddress(req),
       userAgent: req.headers['user-agent'] ?? null,
       deviceInfo: req.headers['x-device-info'] as string | null ?? null,
@@ -156,23 +157,6 @@ export class AuthController {
   }
 
   // ─── Private Helpers ─────────────────────────────────────────
-
-  /**
-   * Extract tenant ID from request.
-   *
-   * In the current single-tenant phase, tenantId is expected from:
-   *   1. Custom header x-tenant-id (development/testing convenience)
-   *   2. Future: JWT sub-domain routing
-   *   3. Future: TenantMiddleware resolves from subdomain
-   *
-   * Defaults to empty string if not present — AuthService will fail
-   * at repository level (no user found for empty tenantId).
-   *
-   * TODO: Replace with TenantMiddleware in Phase 2 tenant work.
-   */
-  private extractTenantId(req: Request): string {
-    return (req.headers['x-tenant-id'] as string | undefined) ?? '';
-  }
 
   /**
    * Extract client IP address from request.

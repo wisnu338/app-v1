@@ -7,6 +7,7 @@ import { PasswordService } from '@infrastructure/password';
 import { TokenService } from '@core/auth';
 import type { TokenPair } from '@core/auth';
 import { SessionService } from './session.service';
+import { AuthSecurityService } from './auth-security.service';
 import { AuthRepository } from '../repositories/auth.repository';
 
 // ─── Response DTOs ────────────────────────────────────────────
@@ -137,6 +138,7 @@ export class AuthService {
     private readonly sessionService: SessionService,
     private readonly tokenService: TokenService,
     private readonly passwordService: PasswordService,
+    private readonly authSecurityService: AuthSecurityService,
   ) {}
 
   // ─── Login ─────────────────────────────────────────────────
@@ -160,6 +162,13 @@ export class AuthService {
     const { identifier, password, tenantId, deviceInfo, ipAddress, userAgent } =
       input;
 
+    await this.authSecurityService.preflightLogin({
+      identifier,
+      tenantId,
+      ipAddress: ipAddress ?? null,
+      userAgent: userAgent ?? null,
+    });
+
     // ── Step 1: Detect identifier type ─────────────────────
     const isEmail = identifier.includes('@');
 
@@ -174,6 +183,12 @@ export class AuthService {
         `Login failed: not found — ` +
           `type=${isEmail ? 'email' : 'nip'}, tenantId=${tenantId}`,
       );
+      await this.authSecurityService.recordLoginFailure({
+        identifier,
+        tenantId,
+        ipAddress: ipAddress ?? null,
+        userAgent: userAgent ?? null,
+      });
       // AUDIT POINT: LOGIN_FAILED (user not found)
       throw new UnauthorizedException();
     }
@@ -185,6 +200,12 @@ export class AuthService {
       this.logger.warn(
         `Login failed: not active — userId=${user.id}, status=${user.status}`,
       );
+      await this.authSecurityService.recordLoginFailure({
+        identifier,
+        tenantId,
+        ipAddress: ipAddress ?? null,
+        userAgent: userAgent ?? null,
+      });
       // AUDIT POINT: LOGIN_FAILED (inactive/suspended)
       throw new UnauthorizedException();
     }
@@ -197,6 +218,12 @@ export class AuthService {
 
     if (!passwordValid) {
       this.logger.warn(`Login failed: bad credentials — userId=${user.id}`);
+      await this.authSecurityService.recordLoginFailure({
+        identifier,
+        tenantId,
+        ipAddress: ipAddress ?? null,
+        userAgent: userAgent ?? null,
+      });
       // AUDIT POINT: LOGIN_FAILED (wrong password)
       throw new UnauthorizedException();
     }
@@ -225,6 +252,13 @@ export class AuthService {
       tenantId: user.tenantId,
       rawRefreshToken: tokenPair.refreshToken,
       deviceInfo: deviceInfo ?? null,
+      ipAddress: ipAddress ?? null,
+      userAgent: userAgent ?? null,
+    });
+
+    await this.authSecurityService.recordLoginSuccess({
+      identifier,
+      tenantId,
       ipAddress: ipAddress ?? null,
       userAgent: userAgent ?? null,
     });
@@ -282,51 +316,69 @@ export class AuthService {
   async refreshTokens(input: RefreshInput): Promise<RefreshResponse> {
     const { rawRefreshToken, deviceInfo, ipAddress, userAgent } = input;
 
-    // ── Step 1: Verify ──────────────────────────────────────
-    const payload = this.tokenService.verifyRefreshToken(rawRefreshToken);
-
-    // ── Step 2: Validate ownership of the raw refresh token before rotation ──
-    await this.sessionService.verifyRefreshTokenOwnership(
-      rawRefreshToken,
-      payload.sessionId,
-      payload.sub,
-      payload.tenantId,
-    );
-
-    // ── Step 3: Pre-generate new sessionId ─────────────────
-    const newSessionId = crypto.randomUUID();
-
-    // ── Step 4: Sign new token pair ─────────────────────────
-    const newPair: TokenPair = this.tokenService.signTokenPair({
-      sub: payload.sub,
-      tenantId: payload.tenantId,
-      sessionId: newSessionId,
-      roleId: payload.roleId,
+    await this.authSecurityService.preflightRefresh({
+      ipAddress: ipAddress ?? null,
+      userAgent: userAgent ?? null,
     });
 
-    // ── Step 5: Atomically revoke and create session ─────────
-    await this.sessionService.rotateSession(
-      payload.sessionId,
-      payload.sub,
-      payload.tenantId,
-      newSessionId,
-      newPair.refreshToken,
-      deviceInfo ?? null,
-      ipAddress ?? null,
-      userAgent ?? null,
-    );
+    try {
+      // ── Step 1: Verify ──────────────────────────────────────
+      const payload = this.tokenService.verifyRefreshToken(rawRefreshToken);
 
-    // AUDIT POINT: REFRESH_TOKEN_ROTATED — userId, oldSessionId, newSessionId
+      // ── Step 2: Validate ownership of the raw refresh token before rotation ──
+      await this.sessionService.verifyRefreshTokenOwnership(
+        rawRefreshToken,
+        payload.sessionId,
+        payload.sub,
+        payload.tenantId,
+      );
 
-    this.logger.log(
-      `Token rotation — userId=${payload.sub}, ` +
-        `old=${payload.sessionId}, new=${newSessionId}`,
-    );
+      // ── Step 3: Pre-generate new sessionId ─────────────────
+      const newSessionId = crypto.randomUUID();
 
-    return {
-      accessToken: newPair.accessToken,
-      refreshToken: newPair.refreshToken,
-    };
+      // ── Step 4: Sign new token pair ─────────────────────────
+      const newPair: TokenPair = this.tokenService.signTokenPair({
+        sub: payload.sub,
+        tenantId: payload.tenantId,
+        sessionId: newSessionId,
+        roleId: payload.roleId,
+      });
+
+      // ── Step 5: Atomically revoke and create session ─────────
+      await this.sessionService.rotateSession(
+        payload.sessionId,
+        payload.sub,
+        payload.tenantId,
+        newSessionId,
+        newPair.refreshToken,
+        deviceInfo ?? null,
+        ipAddress ?? null,
+        userAgent ?? null,
+      );
+
+      await this.authSecurityService.recordRefreshSuccess({
+        ipAddress: ipAddress ?? null,
+        userAgent: userAgent ?? null,
+      });
+
+      // AUDIT POINT: REFRESH_TOKEN_ROTATED — userId, oldSessionId, newSessionId
+
+      this.logger.log(
+        `Token rotation — userId=${payload.sub}, ` +
+          `old=${payload.sessionId}, new=${newSessionId}`,
+      );
+
+      return {
+        accessToken: newPair.accessToken,
+        refreshToken: newPair.refreshToken,
+      };
+    } catch (error) {
+      await this.authSecurityService.recordRefreshFailure({
+        ipAddress: ipAddress ?? null,
+        userAgent: userAgent ?? null,
+      });
+      throw error;
+    }
   }
 
   // ─── Logout ─────────────────────────────────────────────────

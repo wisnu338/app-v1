@@ -11,7 +11,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { JwtAuthGuard, CurrentUser } from '@core/auth';
+import { JwtAuthGuard, CurrentUser, SecurityPolicyGuard } from '@core/auth';
 import type { AuthUser } from '@core/auth';
 import { PermissionGuard } from '@common/guards';
 import { Permission } from '@common/decorators';
@@ -42,7 +42,7 @@ import { UserQueryDto } from '../dto/user-query.dto';
  *   NEVER return { success: true, data: ... } manually.
  */
 @Controller('users')
-@UseGuards(JwtAuthGuard, PermissionGuard)
+@UseGuards(JwtAuthGuard, PermissionGuard, SecurityPolicyGuard)
 export class UsersController {
   constructor(private readonly userService: UserService) {}
 

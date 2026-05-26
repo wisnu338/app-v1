@@ -11,7 +11,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { JwtAuthGuard, CurrentUser } from '@core/auth';
+import { JwtAuthGuard, CurrentUser, SecurityPolicyGuard } from '@core/auth';
 import type { AuthUser } from '@core/auth';
 import { PermissionGuard } from '@common/guards';
 import { Permission } from '@common/decorators';
@@ -38,7 +38,7 @@ import { RoleQueryDto } from '../dto/role-query.dto';
  *   - tenantId always from JWT — cross-tenant access impossible from this layer
  */
 @Controller()
-@UseGuards(JwtAuthGuard, PermissionGuard)
+@UseGuards(JwtAuthGuard, PermissionGuard, SecurityPolicyGuard)
 export class RbacController {
   constructor(private readonly rbacService: RbacService) {}
 

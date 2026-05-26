@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@config/index';
 import { DatabaseModule } from '@core/database';
 import { RedisModule } from '@core/redis';
@@ -7,6 +7,8 @@ import { HealthModule } from '@core/health';
 import { AuthModule } from '@modules/auth/auth.module';
 import { UsersModule } from '@modules/users/users.module';
 import { RbacModule } from '@modules/rbac/rbac.module';
+import { TenantModule } from '@core/tenant/tenant.module';
+import { TenantResolverMiddleware } from '@core/tenant/tenant-resolver.middleware';
 
 /**
  * AppModule — Root application module.
@@ -51,10 +53,13 @@ import { RbacModule } from '@modules/rbac/rbac.module';
     // ─── 3. Core Auth Infrastructure ─────────────────────────
     CoreAuthModule,
 
-    // ─── 4. Core Services ────────────────────────────────────
+    // ─── 4. Tenant Resolution ────────────────────────────────
+    TenantModule,
+
+    // ─── 5. Core Services ────────────────────────────────────
     HealthModule,
 
-    // ─── 5. Business Modules ─────────────────────────────────
+    // ─── 6. Business Modules ─────────────────────────────────
     AuthModule,
     UsersModule,
     RbacModule,
@@ -62,4 +67,8 @@ import { RbacModule } from '@modules/rbac/rbac.module';
   controllers: [],
   providers: [],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(TenantResolverMiddleware).forRoutes('*');
+  }
+}

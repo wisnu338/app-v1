@@ -3,6 +3,7 @@ import { CoreAuthModule } from '@core/auth';
 import { PasswordModule } from '@infrastructure/password';
 import { AuthController } from './controllers/auth.controller';
 import { AuthService } from './services/auth.service';
+import { AuthSecurityService } from './services/auth-security.service';
 import { SessionService } from './services/session.service';
 import { AuthRepository } from './repositories/auth.repository';
 import { SessionRepository } from './repositories/session.repository';
@@ -42,6 +43,7 @@ import { SessionRepository } from './repositories/session.repository';
   controllers: [AuthController],
   providers: [
     AuthService,
+    AuthSecurityService,
     SessionService,
     AuthRepository,
     SessionRepository,

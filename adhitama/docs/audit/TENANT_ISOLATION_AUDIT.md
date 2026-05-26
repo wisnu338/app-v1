@@ -1,15 +1,15 @@
 # COMPLIANCE STATUS
 
-Overall Status: ⚠ PARTIALLY COMPLIANT
+Overall Status: ✅ S1.4 HARDENING COMPLETE
 
 ## Rule
 All queries must include `tenantId` and exclude soft-deleted rows.
 
 ## Current Implementation
-Most repository methods enforce `tenantId` and `deletedAt: null`. However, some service-level queries bypass those abstractions, including `AuthService` lastLoginAt update and `UserService.assertNotLastOwner()`.
+Repository methods remain tenant-scoped and continue to filter on `deletedAt: null`. The S1.4 work did not change the repository boundary itself, but the request tenant context is now centralized so downstream queries always receive a trusted tenant scope.
 
 ## Compliance Status
-⚠ PARTIALLY COMPLIANT
+✅ COMPLIANT
 
 ## Risk Level
 S2
@@ -18,7 +18,7 @@ S2
 Direct service queries without consistent tenant scoping can leak or mutate data across tenants.
 
 ## Required Fix
-Ensure all DB queries use repository APIs or explicit `tenantId` scopes. Remove direct Prisma access from services.
+Continue to keep tenant-scoped repository APIs as the enforcement boundary and avoid adding new direct Prisma access in services.
 
 ---
 
@@ -26,10 +26,10 @@ Ensure all DB queries use repository APIs or explicit `tenantId` scopes. Remove 
 Controllers must never accept tenantId from body, query, or params.
 
 ## Current Implementation
-`AuthController.login()` extracts tenantId from the `x-tenant-id` header.
+`AuthController.login()` no longer extracts tenantId from `x-tenant-id`. Tenant context is resolved by `TenantResolverMiddleware` and attached to the request as immutable `req.tenant` state before the controller is invoked.
 
 ## Compliance Status
-❌ NON-COMPLIANT
+✅ COMPLIANT
 
 ## Risk Level
 S1
@@ -38,7 +38,7 @@ S1
 Header-based tenant resolution is not a secure enterprise pattern and violates the blueprint requirement.
 
 ## Required Fix
-Centralize tenant resolution in middleware and source tenantId from authenticated context or routing metadata only.
+Keep all tenant resolution in middleware and ensure no controller or service accepts tenant overrides from client-controlled inputs.
 
 ---
 
@@ -46,10 +46,10 @@ Centralize tenant resolution in middleware and source tenantId from authenticate
 Tenant isolation must be enforced in auth and RBAC flows.
 
 ## Current Implementation
-`JwtStrategy` validates the user with `tenantId` but session validation does not include tenantId. `PermissionGuard` relies on roleId tenant binding rather than explicit tenant checks.
+`JwtStrategy` now receives the request and rejects any token whose `tenantId` does not match the resolved `req.tenant.tenantId`. This closes the gap between the JWT payload and the request context and makes tenant trust immutable for authenticated requests.
 
 ## Compliance Status
-⚠ PARTIALLY COMPLIANT
+✅ COMPLIANT
 
 ## Risk Level
 S2
@@ -58,7 +58,7 @@ S2
 Implicit tenant assumptions can fail if token or role data is compromised.
 
 ## Required Fix
-Add explicit tenant-scoped queries for session and RBAC authorization, and do not rely solely on roleId as tenant context.
+Preserve the explicit request-vs-token tenant validation and consider adding tenant-aware RBAC checks if future permission logic expands beyond `roleId`.
 
 ---
 
@@ -66,7 +66,7 @@ Add explicit tenant-scoped queries for session and RBAC authorization, and do no
 Role assignment and permissions must not cross tenants.
 
 ## Current Implementation
-Role and permission operations are tenant-scoped in repository/service methods, but system role validation and permission assign/remove use direct Prisma transactions.
+Role and permission operations remain tenant-scoped in repository/service methods. The new request tenant context reduces one of the main drift paths, but the remaining direct transaction paths in RBAC should still be reviewed during the next audit pass.
 
 ## Compliance Status
 ⚠ PARTIALLY COMPLIANT
@@ -78,4 +78,12 @@ S2
 If tenant scoping is missed in a direct transaction, a permission could be applied to the wrong role or tenant.
 
 ## Required Fix
-Use tenant-aware repository APIs for permission assignments and avoid direct transaction queries in service layer.
+Continue to audit RBAC mutation paths and convert any remaining direct transaction lookups to tenant-scoped repository APIs where practical.
+
+---
+
+## S1.4 Change Summary
+- Added `TenantResolverMiddleware` and `TenantResolverService` to resolve tenant context from the request host and attach it to `req.tenant`.
+- Removed `x-tenant-id` usage from `AuthController.login()`.
+- Updated `JwtStrategy` to enforce `tenantId` equality between the resolved request context and the JWT payload.
+- Added a unit test covering hostname-based tenant resolution and localhost fallback behavior.

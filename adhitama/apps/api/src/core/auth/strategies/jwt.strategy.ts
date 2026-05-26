@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PrismaService } from '@infrastructure/prisma';
 import type { AuthConfig } from '@config/index';
+import type { RequestWithTenant } from '@common/types/request-tenant.type';
 import type { JwtPayload } from '../interfaces/jwt-payload.interface';
 import type { AuthUser } from '../types/auth-user.type';
 
@@ -24,7 +25,8 @@ import type { AuthUser } from '../types/auth-user.type';
  *   Step 8:   Session expiresAt > now() (not DB-expired)
  *
  * Query discipline:
- *   User    → SELECT id, tenantId, roleId, status, deletedAt ONLY
+ *   User    → SELECT id, tenantId, roleId, status, deletedAt,
+ *             mustChangePassword, emailVerifiedAt
  *   Session → SELECT id, revokedAt, expiresAt ONLY
  *   No full entity. No relations. No permissions (Phase 2.2.9).
  *
@@ -33,8 +35,8 @@ import type { AuthUser } from '../types/auth-user.type';
  *   Reason logged internally at WARN level for security monitoring.
  *
  * Future awareness:
- *   - emailVerifiedAt gating    : future guard before email-required ops
- *   - mustChangePassword gate   : future guard blocking all non-change-pw endpoints
+ *   - emailVerifiedAt gating    : enforced via SecurityPolicyGuard
+ *   - mustChangePassword gate   : enforced via SecurityPolicyGuard
  *   - MFA/TOTP                  : future strategy extension or separate guard
  *   - Session device management : sessionId in AuthUser supports per-device revoke
  *
@@ -67,6 +69,9 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       ignoreExpiration: false,
       // Access token secret — distinct from refresh token secret
       secretOrKey: authConfig.accessTokenSecret,
+      // Pass the Express request into validate() so we can enforce
+      // request-level tenant consistency against the token payload.
+      passReqToCallback: true,
     });
   }
 
@@ -77,8 +82,18 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
    * Returns AuthUser → Passport attaches it to request.user.
    * Generic UnauthorizedException for ANY failure — no detail exposed.
    */
-  async validate(payload: JwtPayload): Promise<AuthUser> {
+  async validate(
+    req: RequestWithTenant,
+    payload: JwtPayload,
+  ): Promise<AuthUser> {
     const { sub: userId, tenantId, sessionId } = payload;
+
+    if (!req.tenant || req.tenant.tenantId !== tenantId) {
+      this.logger.warn(
+        `Auth failed: tenant mismatch — userId=${userId}, tokenTenant=${tenantId}, requestTenant=${req.tenant?.tenantId ?? 'missing'}`,
+      );
+      throw new UnauthorizedException();
+    }
 
     // ── Step 3-5: Validate User ────────────────────────────
     const user = await this.prismaService.user.findFirst({
@@ -89,6 +104,8 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
         roleId: true,
         status: true,
         deletedAt: true,
+        mustChangePassword: true,
+        emailVerifiedAt: true,
       },
     });
 
@@ -149,6 +166,8 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       tenantId: user.tenantId,
       sessionId: session.id,
       roleId: user.roleId,
+      mustChangePassword: user.mustChangePassword,
+      emailVerified: user.emailVerifiedAt !== null,
     };
 
     return authUser;

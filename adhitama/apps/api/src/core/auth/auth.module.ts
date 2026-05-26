@@ -3,6 +3,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { SecurityPolicyGuard } from './guards/security-policy.guard';
 import { TokenService } from './services/token.service';
 import { PermissionGuard } from '@common/guards/permission.guard';
 
@@ -41,11 +42,13 @@ import { PermissionGuard } from '@common/guards/permission.guard';
   providers: [
     JwtStrategy,
     JwtAuthGuard,
+    SecurityPolicyGuard,
     TokenService,
     PermissionGuard,
   ],
   exports: [
     JwtAuthGuard,
+    SecurityPolicyGuard,
     TokenService,
     PermissionGuard,
   ],
