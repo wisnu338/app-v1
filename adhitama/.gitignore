@@ -10,13 +10,13 @@ out/
 .nuxt/
 
 # ─── Environment Variables ──────────────────────────────────────
-.env
+# .env
 .env.local
 .env.*.local
 .env.development
 .env.staging
 .env.production
-.env.docker
+# .env.docker
 
 # Keep example env files
 !.env.example
