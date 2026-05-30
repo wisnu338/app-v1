@@ -11,7 +11,7 @@ import type { MailConfig } from './types/mail.types';
     MailService,
     {
       provide: MAIL_PROVIDER_TOKEN,
-      useFactory: (configService: ConfigService) => {
+      useFactory: (configService: ConfigService): NoopMailProvider | SmtpMailProvider => {
         const config = configService.get<MailConfig>('mail');
 
         if (!config || config.provider !== MAIL_PROVIDER_NAME.SMTP) {

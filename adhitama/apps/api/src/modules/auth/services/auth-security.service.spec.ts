@@ -1,19 +1,21 @@
 import { HttpException } from '@nestjs/common';
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-return */
 import { AuthSecurityService } from './auth-security.service';
+import { RedisService } from '@infrastructure/redis';
 
 const redisClient = {
-  get: jest.fn(),
-  incr: jest.fn(),
-  expire: jest.fn(),
-  del: jest.fn(),
-  setex: jest.fn(),
-  rpush: jest.fn(),
-  ltrim: jest.fn(),
+  get: jest.fn<Promise<string | null>, [string]>(),
+  incr: jest.fn<Promise<number>, [string]>(),
+  expire: jest.fn<Promise<number>, [string, number]>(),
+  del: jest.fn<Promise<number>, [string | string[]]>(),
+  setex: jest.fn<Promise<'OK'>, [string, number, string]>(),
+  rpush: jest.fn<Promise<number>, [string, string]>(),
+  ltrim: jest.fn<Promise<'OK'>, [string, number, number]>(),
 };
 
 const mockRedisService = {
-  isReady: jest.fn(),
-  getClient: jest.fn(() => redisClient),
+  isReady: jest.fn<boolean, []>(),
+  getClient: jest.fn<ReturnType<RedisService['getClient']>, []>(() => redisClient as any),
 };
 
 describe('AuthSecurityService', () => {
@@ -22,7 +24,7 @@ describe('AuthSecurityService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockRedisService.isReady.mockReturnValue(true);
-    service = new AuthSecurityService(mockRedisService as never);
+    service = new AuthSecurityService(mockRedisService as unknown as RedisService);
   });
 
   it('blocks login attempts when a lockout key is already present', async () => {

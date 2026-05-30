@@ -2,21 +2,22 @@ import { UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PasswordService } from '@infrastructure/password';
 import type { SessionRepository } from '../repositories/session.repository';
+/* eslint-disable @typescript-eslint/unbound-method */
 import { SessionService } from './session.service';
 
-const mockSessionRepository = {
+const mockSessionRepository: jest.Mocked<SessionRepository> = {
   findActiveSessionById: jest.fn(),
   findSessionById: jest.fn(),
   revokeAll: jest.fn(),
   revokeSessionChain: jest.fn(),
-};
+} as unknown as jest.Mocked<SessionRepository>;
 
-const mockPasswordService = {
+const mockPasswordService: jest.Mocked<PasswordService> = {
   hash: jest.fn(),
   verify: jest.fn(),
-};
+} as unknown as jest.Mocked<PasswordService>;
 
-const mockConfigService = {
+const mockConfigService: Partial<ConfigService> = {
   get: jest.fn().mockReturnValue({ refreshTokenExpiresIn: '7d' }),
 };
 
@@ -27,9 +28,9 @@ describe('SessionService', () => {
     jest.clearAllMocks();
 
     service = new SessionService(
-      mockSessionRepository as unknown as SessionRepository,
-      mockPasswordService as unknown as PasswordService,
-      mockConfigService as unknown as ConfigService,
+      mockSessionRepository,
+      mockPasswordService,
+      mockConfigService as ConfigService,
     );
   });
 

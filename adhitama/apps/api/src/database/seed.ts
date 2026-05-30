@@ -23,6 +23,7 @@
  *   Never deletes or overwrites existing tenant data.
  */
 
+/* eslint-disable no-console */
 import { PrismaClient } from '@prisma/client';
 import {
   SeedLogger,

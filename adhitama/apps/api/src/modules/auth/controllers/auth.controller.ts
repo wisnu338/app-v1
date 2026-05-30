@@ -13,9 +13,15 @@ import { JwtAuthGuard, CurrentUser } from '@core/auth';
 import type { AuthUser } from '@core/auth';
 import type { RequestWithTenant } from '@common/types/request-tenant.type';
 import { AuthService } from '../services/auth.service';
+import { EmailVerificationService } from '../services/email-verification.service';
+import { ForgotPasswordService } from '../services/forgot-password.service';
 import type { LoginResponse, RefreshResponse, MeResponse } from '../services/auth.service';
 import { LoginDto } from '../dto/login.dto';
 import { RefreshTokenDto } from '../dto/refresh-token.dto';
+import { VerifyEmailDto } from '../dto/verify-email.dto';
+import { ResendVerificationDto } from '../dto/resend-verification.dto';
+import { RequestPasswordResetDto } from '../dto/request-password-reset.dto';
+import { ResetPasswordDto } from '../dto/reset-password.dto';
 
 /**
  * AuthController — HTTP layer for authentication endpoints.
@@ -52,7 +58,11 @@ import { RefreshTokenDto } from '../dto/refresh-token.dto';
  */
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly emailVerificationService: EmailVerificationService,
+    private readonly forgotPasswordService: ForgotPasswordService,
+  ) {}
 
   // ─── POST /auth/login ──────────────────────────────────────
 
@@ -159,6 +169,73 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async getMe(@CurrentUser() user: AuthUser): Promise<MeResponse> {
     return this.authService.getMe(user.id, user.tenantId);
+  }
+
+  // ─── POST /auth/verify-email ───────────────────────────────
+
+  @Post('verify-email')
+  @HttpCode(HttpStatus.OK)
+  async verifyEmail(
+    @Body() dto: VerifyEmailDto,
+    @Req() req: RequestWithTenant,
+  ): Promise<{ message: string }> {
+    await this.emailVerificationService.verifyEmail(dto.token, req.tenant.tenantId, {
+      ipAddress: this.extractIpAddress(req),
+      userAgent: req.headers['user-agent'] ?? null,
+      sessionId: null,
+    });
+    return { message: 'Email verified successfully' };
+  }
+
+  // ─── POST /auth/resend-verification ───────────────────────
+
+  @Post('resend-verification')
+  @HttpCode(HttpStatus.OK)
+  async resendVerification(
+    @Body() dto: ResendVerificationDto,
+    @Req() req: RequestWithTenant,
+  ): Promise<{ message: string }> {
+    await this.emailVerificationService.resendVerification(dto.email, req.tenant.tenantId, {
+      ipAddress: this.extractIpAddress(req),
+      userAgent: req.headers['user-agent'] ?? null,
+      sessionId: null,
+    });
+    return { message: 'Verification email resent successfully' };
+  }
+
+  // ─── POST /auth/request-password-reset ─────────────────────
+
+  @Post('request-password-reset')
+  @HttpCode(HttpStatus.OK)
+  async requestPasswordReset(
+    @Body() dto: RequestPasswordResetDto,
+    @Req() req: RequestWithTenant,
+  ): Promise<{ message: string }> {
+    await this.forgotPasswordService.requestPasswordReset(dto.email, req.tenant.tenantId, {
+      ipAddress: this.extractIpAddress(req),
+      userAgent: req.headers['user-agent'] ?? null,
+      sessionId: null,
+    });
+    return {
+      message:
+        'If an account with that email exists, a password reset email has been sent.',
+    };
+  }
+
+  // ─── POST /auth/reset-password ────────────────────────────
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(
+    @Body() dto: ResetPasswordDto,
+    @Req() req: RequestWithTenant,
+  ): Promise<{ message: string }> {
+    await this.forgotPasswordService.resetPassword(dto.token, dto.password, req.tenant.tenantId, {
+      ipAddress: this.extractIpAddress(req),
+      userAgent: req.headers['user-agent'] ?? null,
+      sessionId: null,
+    });
+    return { message: 'Password has been reset successfully' };
   }
 
   // ─── Private Helpers ─────────────────────────────────────────

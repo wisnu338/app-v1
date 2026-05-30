@@ -140,6 +140,19 @@ CREATE UNIQUE INDEX "users_tenantId_email_key"
 CREATE UNIQUE INDEX "users_tenantId_nip_key"
     ON "users"("tenantId", "nip");
 
+-- EmailVerificationToken
+CREATE TABLE "email_verification_tokens" (
+    "id"         TEXT NOT NULL,
+    "tenantId"   TEXT NOT NULL,
+    "userId"     TEXT NOT NULL,
+    "tokenHash"  TEXT NOT NULL,
+    "expiresAt"  TIMESTAMP(3) NOT NULL,
+    "usedAt"     TIMESTAMP(3),
+    "createdAt"  TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "email_verification_tokens_pkey" PRIMARY KEY ("id")
+);
+
 -- ─── Regular Indexes ─────────────────────────────────────────
 
 -- roles
@@ -178,6 +191,12 @@ CREATE INDEX "users_tenantId_nip_idx"
 
 CREATE INDEX "users_emailVerifiedAt_idx"
     ON "users"("emailVerifiedAt");
+
+CREATE INDEX "email_verification_tokens_tenantId_userId_idx"
+    ON "email_verification_tokens"("tenantId", "userId");
+
+CREATE INDEX "email_verification_tokens_tokenHash_idx"
+    ON "email_verification_tokens"("tokenHash");
 
 -- sessions
 CREATE INDEX "sessions_tenantId_userId_idx"
@@ -283,3 +302,17 @@ ALTER TABLE "audit_logs"
     FOREIGN KEY ("actorUserId")
     REFERENCES "users"("id")
     ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- email_verification_tokens → tenants (CASCADE: tenant deletion cleans tokens)
+ALTER TABLE "email_verification_tokens"
+    ADD CONSTRAINT "email_verification_tokens_tenantId_fkey"
+    FOREIGN KEY ("tenantId")
+    REFERENCES "tenants"("id")
+    ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- email_verification_tokens → users (CASCADE: user deletion cleans tokens)
+ALTER TABLE "email_verification_tokens"
+    ADD CONSTRAINT "email_verification_tokens_userId_fkey"
+    FOREIGN KEY ("userId")
+    REFERENCES "users"("id")
+    ON DELETE CASCADE ON UPDATE CASCADE;

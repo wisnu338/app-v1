@@ -130,6 +130,22 @@ export const validationSchema = Joi.object({
     .description('Default MAIL From address for outbound emails.'),
 
   MAIL_SMTP_FROM_NAME: Joi.string().default('Adhitama ERP').description('Optional display name for outbound email sender.'),
+
+  EMAIL_VERIFICATION_URL: Joi.string()
+    .uri({ scheme: ['http', 'https'] })
+    .allow('')
+    .default('')
+    .description(
+      'Optional verification URL template. Use {{token}} as placeholder for the raw verification token.',
+    ),
+
+  PASSWORD_RESET_URL: Joi.string()
+    .uri({ scheme: ['http', 'https'] })
+    .allow('')
+    .default('')
+    .description(
+      'Optional password reset URL template. Use {{token}} as placeholder for the raw reset token.',
+    ),
 })
   // Allow unknown keys — OS may inject additional env vars (CI/CD, Docker, etc.)
   // abortEarly: false → show ALL validation errors at once, not just first

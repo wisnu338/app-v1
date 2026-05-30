@@ -1,4 +1,5 @@
-import { ForbiddenException } from '@nestjs/common';
+/* eslint-disable @typescript-eslint/explicit-function-return-type */
+import { ForbiddenException, type ExecutionContext } from '@nestjs/common';
 import type { AuthUser } from '../types/auth-user.type';
 import { SecurityPolicyGuard } from './security-policy.guard';
 
@@ -11,14 +12,14 @@ const baseUser: AuthUser = {
   emailVerified: true,
 };
 
-function createExecutionContext(user: Partial<AuthUser> = {}) {
+function createExecutionContext(user: Partial<AuthUser> = {}): ExecutionContext {
   return {
     switchToHttp: () => ({
       getRequest: () => ({
         user: { ...baseUser, ...user },
       }),
     }),
-  } as never;
+  } as ExecutionContext;
 }
 
 describe('SecurityPolicyGuard', () => {
@@ -52,7 +53,7 @@ describe('SecurityPolicyGuard', () => {
           route: { path: '/auth/me' },
         }),
       }),
-    } as never;
+    } as ExecutionContext;
 
     expect(guard.canActivate(context)).toBe(true);
   });

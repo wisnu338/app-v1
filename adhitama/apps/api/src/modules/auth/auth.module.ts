@@ -2,11 +2,16 @@ import { Module } from '@nestjs/common';
 import { CoreAuthModule } from '@core/auth';
 import { PasswordModule } from '@infrastructure/password';
 import { AuditModule } from '@modules/audit/audit.module';
+import { NotificationModule } from '@modules/notification/notification.module';
 import { AuthController } from './controllers/auth.controller';
 import { AuthService } from './services/auth.service';
 import { AuthSecurityService } from './services/auth-security.service';
+import { EmailVerificationService } from './services/email-verification.service';
+import { ForgotPasswordService } from './services/forgot-password.service';
 import { SessionService } from './services/session.service';
 import { AuthRepository } from './repositories/auth.repository';
+import { EmailVerificationRepository } from './repositories/email-verification.repository';
+import { ForgotPasswordRepository } from './repositories/forgot-password.repository';
 import { SessionRepository } from './repositories/session.repository';
 
 /**
@@ -41,19 +46,26 @@ import { SessionRepository } from './repositories/session.repository';
     // Provides: PasswordService (Argon2id hash + verify)
     PasswordModule,
     AuditModule,
+    NotificationModule,
   ],
   controllers: [AuthController],
   providers: [
     AuthService,
     AuthSecurityService,
+    EmailVerificationService,
+    ForgotPasswordService,
     SessionService,
     AuthRepository,
+    EmailVerificationRepository,
+    ForgotPasswordRepository,
     SessionRepository,
   ],
   exports: [
     // Export AuthService for potential use in UserModule (password change)
     // Export SessionService for future admin/session management module
     AuthService,
+    EmailVerificationService,
+    ForgotPasswordService,
     SessionService,
   ],
 })

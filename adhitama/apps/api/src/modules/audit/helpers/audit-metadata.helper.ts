@@ -49,7 +49,24 @@ function sanitizeValue(value: unknown, depth = 0): unknown {
     );
   }
 
-  return String(value);
+  if (typeof value === 'object' && value !== null) {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return '[unserializable]';
+    }
+  }
+
+  if (typeof value === 'symbol') {
+    return value.toString();
+  }
+
+  if (typeof value === 'function') {
+    return value.toString();
+  }
+
+  const primitive = value as string | number | boolean | symbol;
+  return String(primitive);
 }
 
 export function sanitizeMetadata(metadata?: Record<string, unknown>): Record<string, unknown> {

@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * SeedLogger — centralized logging for seed scripts.
  *

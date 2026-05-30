@@ -13,16 +13,16 @@ export class SecurityPolicyGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<
       Request & {
         user?: AuthUser;
-        route?: { path?: string };
       }
     >();
 
     const user = request.user;
+    const route = request.route as { path?: string } | undefined;
     if (!user) {
       throw new ForbiddenException();
     }
 
-    if (request.route?.path === '/auth/me') {
+    if (route?.path === '/auth/me') {
       return true;
     }
 

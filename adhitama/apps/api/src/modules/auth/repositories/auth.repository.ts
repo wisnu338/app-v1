@@ -159,4 +159,13 @@ export class AuthRepository {
 
     return user;
   }
+
+  async markEmailVerified(userId: string, tenantId: string): Promise<boolean> {
+    const result = await this.prismaService.user.updateMany({
+      where: { id: userId, tenantId, deletedAt: null },
+      data: { emailVerifiedAt: new Date() },
+    });
+
+    return result.count === 1;
+  }
 }

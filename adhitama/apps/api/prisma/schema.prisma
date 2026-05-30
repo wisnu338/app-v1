@@ -91,10 +91,12 @@ model Tenant {
   updatedAt DateTime @updatedAt
 
   // ─── Relations ───────────────────────────────────────────
-  users          User[]
-  roles          Role[]
-  sessions       Session[]
-  auditLogs      AuditLog[]
+  users                    User[]
+  roles                    Role[]
+  sessions                 Session[]
+  auditLogs                AuditLog[]
+  emailVerificationTokens  EmailVerificationToken[]
+  passwordResetTokens      PasswordResetToken[]
 
   @@map("tenants")
 }
@@ -309,8 +311,10 @@ model User {
   /// Restrict: role cannot be deleted while users are assigned to it.
   role Role @relation(fields: [roleId], references: [id], onDelete: Restrict)
 
-  sessions     Session[]
-  auditLogs    AuditLog[] @relation("AuditLogActor")
+  sessions                 Session[]
+  auditLogs                AuditLog[] @relation("AuditLogActor")
+  emailVerificationTokens  EmailVerificationToken[]
+  passwordResetTokens      PasswordResetToken[]
 
   /// Back-references for Role audit trail fields
   rolesCreated Role[]     @relation("RoleCreatedBy")
@@ -327,6 +331,45 @@ model User {
   @@index([emailVerifiedAt])
   @@map("users")
 }
+
+/// EmailVerificationToken — one-time secure token for email verification.
+/// Raw tokens are NEVER persisted.
+/// Token hashes are compared using constant-time semantics in service layer.
+model EmailVerificationToken {
+  id         String   @id @default(cuid())
+  tenantId   String
+  userId     String
+  tokenHash  String
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId])
+  @@index([tokenHash])
+  @@map("email_verification_tokens")
+}
+
+/// PasswordResetToken — one-time secure token for password reset.
+model PasswordResetToken {
+  id         String   @id @default(cuid())
+  tenantId   String
+  userId     String
+  tokenHash  String
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId])
+  @@index([tokenHash])
+  @@map("password_reset_tokens")
+}
+
 // ─── Session ──────────────────────────────────────────────────
 
 /// Session — multi-device refresh token session.

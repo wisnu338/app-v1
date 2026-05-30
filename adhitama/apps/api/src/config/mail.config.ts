@@ -11,6 +11,8 @@ export interface MailConfig {
   smtpPassword: string | null;
   fromEmail: string;
   fromName: string;
+  emailVerificationUrl: string | null;
+  passwordResetUrl: string | null;
 }
 
 export const mailConfig = registerAs('mail', (): MailConfig => ({
@@ -22,4 +24,6 @@ export const mailConfig = registerAs('mail', (): MailConfig => ({
   smtpPassword: process.env['MAIL_SMTP_PASSWORD'] ?? null,
   fromEmail: process.env['MAIL_SMTP_FROM'] ?? '',
   fromName: process.env['MAIL_SMTP_FROM_NAME'] ?? 'Adhitama ERP',
+  emailVerificationUrl: process.env['EMAIL_VERIFICATION_URL'] ?? null,
+  passwordResetUrl: process.env['PASSWORD_RESET_URL'] ?? null,
 }));
